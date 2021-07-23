@@ -1,0 +1,13 @@
+bed: data/capp_seq_target_regions.clean.bed
+bams:
+    VD-107N: data/VD-107N.final.bam
+    VD-108N: data/VD-108N.final.bam
+    VD-109N: data/VD-109N.final.bam
+refvcfs:
+    VD-107N: source/HG002_GRCh37_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz
+    VD-108N: source/HG001_GRCh37_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_PGandRTGphasetransfer.vcf.gz
+    VD-109N: source/HG005_GRCh37_highconf_CG-IllFB-IllGATKHC-Ion-SOLID_CHROM1-22_v.3.3.2_highconf.vcf.gz
+refbeds:
+    VD-107N: source/HG002_GRCh37_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-22_v.3.3.2_highconf_noinconsistent.hg19.bed
+    VD-108N: source/HG001_GRCh37_GIAB_highconf_CG-IllFB-IllGATKHC-Ion-10X-SOLID_CHROM1-X_v.3.3.2_highconf_nosomaticdel.hg19.bed
+    VD-109N: source/HG005_GRCh37_highconf_CG-IllFB-IllGATKHC-Ion-SOLID_CHROM1-22_v.3.3.2_highconf_noMetaSV.hg19.bed
