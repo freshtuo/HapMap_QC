@@ -1,3 +1,146 @@
-configfile: "config.yaml"
+configfile: "config/config.yaml"
 
+
+def get_bam_files(wildcards):
+    return config["bams"][wildcards.sample]
+
+def get_ref_bed_files(wildcards):
+    return config["refbeds"][wildcards.sample]
+
+def get_ref_vcf_files(wildcards):
+    return config["refvcfs"][wildcards.sample]
+
+
+rule reorder_bam:
+    input:
+        seqdict=config["seqdict"],
+        bam=get_bam_files
+    output:
+        bam=temp("results/reordered_bams/{sample}.reordered.bam"),
+        bai=temp("results/reordered_bams/{sample}.reordered.bai"),
+        tmp=temp(directory("results/reordered_bams/tmp{sample}"))
+    resources:
+        mem_mb=20000
+        #tmpdir=
+    log:
+        "results/logs/reorder_bam/{sample}.log"
+    conda:
+        "../envs/picard.yaml"
+    shell:
+        "picard ReorderSam INPUT={input.bam} OUTPUT={output.bam} SEQUENCE_DICTIONARY={input.seqdict} "
+        "TMP_DIR={output.tmp} CREATE_INDEX=true >{log} 2>&1"
+
+rule fix_bam_rg:
+    input:
+        bam="results/reordered_bams/{sample}.reordered.bam",
+        bai="results/reordered_bams/{sample}.reordered.bai"
+    output:
+        bam=protected("results/fix_rg_bams/{sample}.rg.bam"),
+        bai=protected("results/fix_rg_bams/{sample}.rg.bam.bai")
+    params:
+        lib=config["lib"]
+    log:
+        "results/logs/fix_bam_rg/{sample}.log"
+    conda:
+        "../envs/samtools.yaml"
+    threads: 4
+    shell:
+        """
+        samtools addreplacerg -@ {threads} -r 'ID:{wildcards.sample}\tSM:{wildcards.sample}\tLB:{params.lib}\tPL:ILLUMINA' -o {output.bam} {input.bam} >{log} 2>&1
+        samtools index -@ {threads} {output.bam} >>{log} 2>&1
+        """
+
+# https://stackoverflow.com/questions/56693699/snakemake-claims-rule-exits-with-non-zero-exit-code-even-with-true
+rule gatk_joint_call:
+    input:
+        seq=config["seq"],
+        bed=config["bed"],
+        bam=expand("results/fix_rg_bams/{sample}.rg.bam", sample=config["bams"]),
+        bai=expand("results/fix_rg_bams/{sample}.rg.bam.bai", sample=config["bams"])
+    output:
+        vcf="results/gatk_joint_variants/joint.raw.vcf.gz",
+        tbi="results/gatk_joint_variants/joint.raw.vcf.gz.tbi"
+    params:
+        cwd=config["cwd"],
+        seq="/source/genome.fa",
+        bed="/bed/capp_seq_target_regions.clean.bed",
+        bam=expand("-I /bam/{sample}.rg.bam", sample=config["bams"]),
+        vcf="/data/joint.raw.vcf.gz"
+    resources:
+        mem_gb=20
+    threads: 4
+    log:
+        "results/logs/gatk_joint_call/gatk.log"
+    #singularity:
+    #container:
+    #    "docker://broadinstitute/gatk"
+    shell:
+        "docker run --user $(id -u):$(id -g) -it "
+        "-v {params.cwd}/source:/source "
+        "-v {params.cwd}/results/fix_rg_bams:/bam "
+        "-v {params.cwd}/data:/bed "
+        "-v {params.cwd}/results/gatk_joint_variants:/data "
+        "broadinstitute/gatk gatk HaplotypeCaller "
+        "--java-options '-Xmx{resources.mem_gb}g -XX:ParallelGCThreads={threads}' "
+        "-R {params.seq} "
+        "{params.bam} "
+        "-O {params.vcf} "
+        "-L {params.bed} >{log} 2>&1"
+
+
+rule split_gatk_joint_call:
+    input:
+        "results/gatk_joint_variants/joint.raw.vcf.gz"
+    output:
+        expand("results/split_gatk_joint_variants/{sample}.vcf.gz", sample=config["bams"])
+    params:
+        outdir="results/split_gatk_joint_variants"
+    log:
+        "results/logs/split_gatk_joint_call/bcftools.split.log"
+    conda:
+        "../envs/bcftools.yaml"
+    shell:
+        "bcftools +split {input} -Oz -o {params.outdir} >{log} 2>&1"
+
+
+rule filter_gatk_joint_call:
+    params:
+        vcut=config["vcut"]
+    input:
+        "results/split_gatk_joint_variants/{sample}.vcf.gz"
+    output:
+        "results/filtered_gatk_joint_variants/p{vcut}/{sample}.vcf.gz"
+    log:
+        "results/logs/filter_gatk_joint_call/p{vcut}/{sample}.log"
+    conda:
+        "../envs/python.yaml"
+    script:
+        "scripts/filter_gatk_vcf.py"
+
+
+rule benchmark_gatk_joint_call:
+    input:
+        seq=config["seq"],
+        queryvcf="results/split_gatk_joint_variants/{sample}.vcf.gz",
+        querybed=config["bed"],
+        refvcf=get_ref_vcf_files,
+        refbed=get_ref_bed_files
+    output:
+        
+    threads: 4
+    log:
+    shell:
+        
+docker run -it -v ${vardir}:/data pkrusche/hap.py /opt/hap.py/bin/hap.py \
+        /data/reference.vcf.gz \
+        /data/query.vcf.gz \
+        -r /data/genome.fa \
+        -f /data/reference.bed \
+        -T /data/query.bed \
+        --threads 1 \
+        --write-vcf \
+        --write-counts \
+        --verbose \
+        -o /data/compare/all/${sid} \
+>${qclogdir}/hap.py.${sid}.all.log 2>&1
 

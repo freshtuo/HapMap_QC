@@ -1,3 +1,8 @@
+cwd: /data/gc-core/taz2008/Pipelines/DNAseq/HapMap_QC
+lib: NDX550316_RUO_78_HJ5GYAFX2_1
+vcut: 0.25
+seq: source/genome.fa
+seqdict: source/genome.dict
 bed: data/capp_seq_target_regions.clean.bed
 bams:
     VD-107N: data/VD-107N.final.bam
