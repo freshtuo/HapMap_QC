@@ -39,14 +39,14 @@ def my_filt(tx):
         else:
             return '{};LowVAF'.format(filt)
 
-with gzip.open(varfile,'r') as fvar, open(outfile,'w') as fout:
+with gzip.open(varfile,'r') as fvar, gzip.open(outfile,'w') as fout:
     # save headers
     headers = [x.decode("utf-8") for x in fvar.readlines() if search('^#',x.decode("utf-8"))]
     #fout.write(''.join(headers).encode())
-    fout.write(headers[0])
-    fout.write('##FILTER=<ID=LowVAF,Description="VAF<35%">\n')
-    fout.write('##FILTER=<ID=NoCov,Description="No reads covered">\n')
-    fout.write(''.join(headers[1:]))
+    fout.write(headers[0].encode())
+    fout.write('##FILTER=<ID=LowVAF,Description="VAF<35%">\n'.encode())
+    fout.write('##FILTER=<ID=NoCov,Description="No reads covered">\n'.encode())
+    fout.write(''.join(headers[1:]).encode())
     # load variants
     variants = pd.read_table(varfile, header=None, sep='\t', names=cols, low_memory=False, comment='#')
     print('raw variants: {}'.format(variants.shape))
