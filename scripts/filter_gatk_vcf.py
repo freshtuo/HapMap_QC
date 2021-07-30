@@ -9,7 +9,7 @@ import sys
 import gzip
 from re import search
 
-sid = snakemake.wildcards
+sid = snakemake.wildcards.sample
 varfile = snakemake.input[0]
 outfile = snakemake.output[0]
 vcut = float(snakemake.config["vcut"])
