@@ -2,8 +2,6 @@ configfile: "config/config.yaml"
 
 vcut=config["vcut"]
 
-import os.path
-
 def get_bam_files(wildcards):
     return config["bams"][wildcards.sample]
 
@@ -13,14 +11,6 @@ def get_ref_bed_files(wildcards):
 def get_ref_vcf_files(wildcards):
     return config["refvcfs"][wildcards.sample]
 
-def set_ref_bed_files_docker(wildcards):
-    return "/source/{}".format(os.path.basename(config["refbeds"][wildcards.sample]))
-
-def set_ref_vcf_files_docker(wildcards):
-    return "/source/{}".format(os.path.basename(config["refvcfs"][wildcards.sample]))
-
-def set_query_bed_files_docker(wildcards):
-    return "/bed/{}".format(os.path.basename(config["bed"]))
 
 rule reorder_bam:
     input:
@@ -133,7 +123,7 @@ rule filter_gatk_joint_call:
 rule benchmark_gatk_joint_call:
     input:
         seq=config["seq"],
-        queryvcf="results/split_gatk_joint_variants/{sample}.vcf.gz",
+        queryvcf="results/filtered_gatk_joint_variants/p{vcut}/{sample}.vcf.gz",
         querybed=config["bed"],
         refvcf=get_ref_vcf_files,
         refbed=get_ref_bed_files
@@ -142,34 +132,37 @@ rule benchmark_gatk_joint_call:
         vcf="results/benchmark_gatk_joint_variants/p{vcut}/{sample}.vcf.gz",
         vidx="results/benchmark_gatk_joint_variants/p{vcut}/{sample}.vcf.gz.tbi",
         runinfo="results/benchmark_gatk_joint_variants/p{vcut}/{sample}.runinfo.json"
-    params:
-        cwd=config["cwd"],
-        seq="/source/genome.fa",
-        querybed=set_query_bed_files_docker,
-        queryvcf="/query/{sample}.vcf.gz",
-        refbed=set_ref_bed_files_docker,
-        refvcf=set_ref_vcf_files_docker
     threads: 4
     log:
         "results/logs/benchmark_gatk_joint_call/p{vcut}/{sample}.log"
+    conda:
+        "../envs/hap.py.yaml"
     shell:
-        #"docker run -it "
-        #"docker run --user $(id -u):$(id -g) -it "
-        "docker run -it -e LOCAL_USER_ID=`id -u $USER` "
-        "-v {params.cwd}/source:/source "
-        "-v {params.cwd}/data:/bed "
-        "-v {params.cwd}/results/split_gatk_joint_variants:/query "
-        "-v {params.cwd}/results/benchmark_gatk_joint_variants/p{vcut}:/data "
-        "pkrusche/hap.py /opt/hap.py/bin/hap.py "
-        "{params.refvcf} "
-        "{params.queryvcf} "
-        "-r {params.seq} "
-        "-f {params.refbed} "
-        "-T {params.querybed} "
+        "hap.py "
+        "{input.refvcf} "
+        "{input.queryvcf} "
+        "-r {input.seq} "
+        "-f {input.refbed} "
+        "-T {input.querybed} "
         "--threads {threads} "
         "--write-vcf "
         "--write-counts "
         "--verbose "
-        "-o /data/{wildcards.sample} "
+        "-o results/benchmark_gatk_joint_variants/p{vcut}/{wildcards.sample} "
         ">{log} 2>&1"
+
+
+rule summarize_benchmark_gatk_joint_call:
+    input:
+        queryvcf=expand("results/filtered_gatk_joint_variants/p{vcut}/{sample}.vcf.gz", vcut=config["vcut"], sample=config["bams"]),
+        summary=expand("results/benchmark_gatk_joint_variants/p{vcut}/{sample}.summary.csv", vcut=config["vcut"], sample=config["bams"]),
+        benchvcf=expand("results/benchmark_gatk_joint_variants/p{vcut}/{sample}.vcf.gz", vcut=config["vcut"], sample=config["bams"])
+    output:
+        excel=expand("results/summary_gatk_joint_variants/p{vcut}/QC.gatk.joint.PASS.xlsx", vcut=config["vcut"])
+    log:
+        expand("results/logs/summarize_benchmark_gatk_joint_call/p{vcut}/summary.log", vcut=config["vcut"])
+    conda:
+        "../envs/python.yaml"
+    script:
+        "../scripts/summarize_gatk_joint_call.py"
 
